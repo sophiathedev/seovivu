@@ -43,7 +43,12 @@ defmodule Seovivu.Accounts do
             |> User.telegram_changeset(attrs)
             |> Repo.insert!()
 
-          user = user |> User.password_changeset(%{password: password}) |> Repo.update!()
+          user =
+            user
+            |> User.password_changeset(%{password: password})
+            |> Ecto.Changeset.put_change(:must_change_password, true)
+            |> Repo.update!()
+
           Billing.ensure_wallets(user.id)
           %{user: user, password: password}
         end)
@@ -63,20 +68,39 @@ defmodule Seovivu.Accounts do
     :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
   end
 
-  @doc "Sets a specific (already-known) plaintext password on a user."
+  @doc """
+  Sets a specific (already-known) plaintext password the user/admin chose, and
+  clears the "must change password" flag (the password is no longer a system
+  secret the user needs to replace).
+  """
   def set_password(%User{} = user, password) do
-    user |> User.password_changeset(%{password: password}) |> Repo.update()
+    user
+    |> User.password_changeset(%{password: password})
+    |> Ecto.Changeset.put_change(:must_change_password, false)
+    |> Repo.update()
   end
 
-  @doc "Generates a new random password, stores it, and returns the plaintext."
+  @doc """
+  Generates a new random password, stores it, and returns the plaintext. Flags
+  the account so the user is forced to change it on next login.
+  """
   def reset_password(%User{} = user) do
     password = generate_password()
 
-    case set_password(user, password) do
+    result =
+      user
+      |> User.password_changeset(%{password: password})
+      |> Ecto.Changeset.put_change(:must_change_password, true)
+      |> Repo.update()
+
+    case result do
       {:ok, user} -> {:ok, user, password}
       {:error, changeset} -> {:error, changeset}
     end
   end
+
+  @doc "Verifies a plaintext password against the user's stored hash."
+  def valid_password?(%User{} = user, password), do: User.valid_password?(user, password)
 
   @doc """
   Authenticates by Telegram username (or numeric Telegram ID) + password.

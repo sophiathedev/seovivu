@@ -40,6 +40,18 @@ defmodule Seovivu.AccountsTest do
     end
   end
 
+  describe "must-change-password flag" do
+    test "reset_password sets the flag; the user choosing a password clears it" do
+      user = create_user()
+
+      {:ok, user, _password} = Accounts.reset_password(user)
+      assert Accounts.get_user!(user.id).must_change_password
+
+      {:ok, _} = Accounts.set_password(user, "chosen-pass-1")
+      refute Accounts.get_user!(user.id).must_change_password
+    end
+  end
+
   describe "users without a password" do
     test "counts/lists active, Telegram-reachable users that have no password" do
       no_pw = create_user()

@@ -19,10 +19,12 @@ defmodule SeovivuWeb.Router do
 
   pipeline :authenticated do
     plug :require_authenticated_user
+    plug :require_password_changed
   end
 
   pipeline :admin_only do
     plug :require_authenticated_user
+    plug :require_password_changed
     plug :require_admin
   end
 
@@ -73,6 +75,11 @@ defmodule SeovivuWeb.Router do
     pipe_through [:browser, :authenticated]
 
     get "/go/index", IndexHandoffController, :create
+
+    # Forced password change (first login with a system-issued password). The
+    # require_password_changed plug lets this path through to avoid a loop.
+    get "/change-password", PasswordController, :edit
+    put "/change-password", PasswordController, :update
   end
 
   ## Telegram webhook (production update delivery)

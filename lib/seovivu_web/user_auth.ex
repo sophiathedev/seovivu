@@ -69,6 +69,21 @@ defmodule SeovivuWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug: forces a user whose password was system-issued to change it before
+  reaching any protected page. Lets the change-password page itself through so
+  there is no redirect loop.
+  """
+  def require_password_changed(conn, _opts) do
+    user = conn.assigns[:current_user]
+
+    cond do
+      not match?(%Accounts.User{must_change_password: true}, user) -> conn
+      conn.request_path == ~p"/change-password" -> conn
+      true -> conn |> redirect(to: ~p"/change-password") |> halt()
+    end
+  end
+
   @doc "Plug: requires the current user to be an admin."
   def require_admin(conn, _opts) do
     case conn.assigns[:current_user] do
@@ -152,8 +167,10 @@ defmodule SeovivuWeb.UserAuth do
 
   ## Helpers
 
-  defp signed_in_path(%Accounts.User{role: :admin}), do: ~p"/admin"
-  defp signed_in_path(_user), do: ~p"/app"
+  @doc "Where to send a user after they sign in."
+  def signed_in_path(%Accounts.User{must_change_password: true}), do: ~p"/change-password"
+  def signed_in_path(%Accounts.User{role: :admin}), do: ~p"/admin"
+  def signed_in_path(_user), do: ~p"/app"
 
   defp renew_session(conn) do
     delete_csrf_token()

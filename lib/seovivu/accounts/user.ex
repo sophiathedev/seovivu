@@ -24,6 +24,10 @@ defmodule Seovivu.Accounts.User do
     field :status, Ecto.Enum, values: [:active, :banned], default: :active
     field :last_login_at, :utc_datetime
 
+    # True when the current password was issued by the system (Telegram welcome
+    # or an admin/bot reset) and the user must change it before using the app.
+    field :must_change_password, :boolean, default: false
+
     # Virtual field used when generating/setting a new password.
     field :password, :string, virtual: true, redact: true
 
