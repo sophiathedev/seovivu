@@ -307,10 +307,10 @@ defmodule SeovivuWeb.Admin.UserManagerLive do
 
   defp manage_panel(assigns) do
     ~H"""
-    <div class="fixed inset-0 z-40 flex justify-end bg-ink/30" phx-click="close">
+    <div class="fixed inset-0 z-40 flex justify-end bg-ink/30">
       <div
         class="h-full w-full max-w-md overflow-y-auto bg-surface p-6 shadow-card"
-        onclick="event.stopPropagation()"
+        phx-click-away="close"
       >
         <div class="flex items-start justify-between">
           <div>

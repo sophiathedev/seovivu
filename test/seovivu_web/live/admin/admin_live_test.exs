@@ -1,7 +1,7 @@
 defmodule SeovivuWeb.Admin.AdminLiveTest do
   use SeovivuWeb.ConnCase, async: true
 
-  alias Seovivu.{Billing, Catalog, Indexer}
+  alias Seovivu.{Accounts, Billing, Catalog, Indexer}
 
   describe "access control" do
     test "a regular user is redirected away from /admin", %{conn: conn} do
@@ -64,6 +64,18 @@ defmodule SeovivuWeb.Admin.AdminLiveTest do
       |> render_submit(%{"amount" => "250", "op" => "add"})
 
       assert Billing.get_wallet(target.id, :main).credits == 250
+    end
+
+    test "user manager: ban then delete a user from the manage panel", %{conn: conn} do
+      target = user_fixture()
+      {:ok, lv, _html} = live(conn, ~p"/admin/users")
+
+      lv |> render_click("manage", %{"id" => to_string(target.id)})
+      lv |> render_click("ban")
+      assert Accounts.get_user!(target.id).status == :banned
+
+      lv |> render_click("delete")
+      refute Accounts.get_user(target.id)
     end
 
     test "user manager: numbered pagination jumps to a chosen page", %{conn: conn} do
