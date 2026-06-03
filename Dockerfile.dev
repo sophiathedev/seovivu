@@ -1,0 +1,20 @@
+# Development image for the Seovivu Phoenix app.
+# Uses the latest Elixir image; asset tooling (esbuild/tailwind) is downloaded
+# as standalone binaries by Mix, so Node.js is not required.
+FROM elixir:latest
+
+# - build-essential / git: native deps compilation
+# - inotify-tools: required by Phoenix live reload to watch files
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential git inotify-tools \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN mix local.hex --force && mix local.rebar --force
+
+ENV MIX_ENV=dev
+WORKDIR /app
+
+# Source is bind-mounted via docker-compose for live reloading; the actual
+# startup command (deps.get + ecto.setup + phx.server) is defined there.
+EXPOSE 4000
+CMD ["mix", "phx.server"]

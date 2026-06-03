@@ -1,0 +1,132 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/seovivu_web";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* ---------------------------------------------------------------------------
+   GitLab Sans — default application font.
+   Variable font files live in priv/static/fonts and are served from /fonts.
+--------------------------------------------------------------------------- */
+@font-face {
+  font-family: "GitLab Sans";
+  src: url("/fonts/GitLabSans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GitLab Sans";
+  src: url("/fonts/GitLabSans-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---------------------------------------------------------------------------
+   Design tokens — derived from "Modern SEO Toolkit Admin Dashboard" style.
+   These feed Tailwind utilities, e.g. bg-page, text-ink, border-line,
+   bg-brand, text-accent, rounded-card, shadow-card.
+--------------------------------------------------------------------------- */
+@theme {
+  /* Typography: GitLab Sans is used for every font utility (sans, mono, serif)
+     so the whole UI renders in one family. */
+  --font-sans:
+    "GitLab Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    "GitLab Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-serif:
+    "GitLab Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+
+  /* Surfaces / backgrounds */
+  --color-page: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f3f6fb;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-ink-secondary: #475569;
+  --color-ink-muted: #64748b;
+  --color-ink-light: #94a3b8;
+
+  /* Borders */
+  --color-line: #e5e7eb;
+  --color-line-soft: #eef2f7;
+  --color-line-strong: #cbd5e1;
+
+  /* Brand / accent */
+  --color-brand: #0b1220;
+  --color-brand-hover: #111827;
+  --color-brand-soft: #eef4ff;
+  --color-accent: #2563eb;
+  --color-accent-soft: #eaf1ff;
+
+  /* Status */
+  --color-success: #059669;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  --color-danger: #e11d48;
+  --color-danger-bg: #fff1f2;
+  --color-danger-border: #fda4af;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-info: #2563eb;
+  --color-info-bg: #eff6ff;
+
+  /* Legacy daisyUI-style color aliases kept so the default Phoenix splash
+     markup (base-100/200/300, base-content, primary, error) still renders. */
+  --color-base-100: #ffffff;
+  --color-base-200: #f1f5f9;
+  --color-base-300: #e2e8f0;
+  --color-base-content: #0f172a;
+  --color-primary: #0b1220;
+  --color-primary-content: #ffffff;
+  --color-error: #e11d48;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-card: 14px;
+  --radius-button: 10px;
+  --radius-badge: 999px;
+  --radius-box: 16px;
+
+  /* Shadows */
+  --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-button: 0 4px 10px rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* ---------------------------------------------------------------------------
+   Base styles — apply the design system defaults globally.
+--------------------------------------------------------------------------- */
+@layer base {
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

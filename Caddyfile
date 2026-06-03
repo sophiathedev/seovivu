@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Seovivu — production Caddyfile
+#
+# Caddy reads {$PHX_HOST}, {$PORT} and {$ACME_EMAIL} from the environment (the
+# same values as .env.prod), terminates TLS automatically via Let's Encrypt,
+# and reverse-proxies BOTH the apex and the index.<PHX_HOST> subdomain to the
+# Phoenix release. Phoenix itself routes index.<host> to the "Gửi Index" app
+# through host-based router scopes, so both names share one upstream.
+#
+# Run it, passing the env through:
+#   export PHX_HOST=seovivu.com PORT=4000 ACME_EMAIL=you@seovivu.com
+#   caddy run --config ./Caddyfile
+#
+# Or with systemd, point caddy.service at an EnvironmentFile=/etc/seovivu/.env.prod
+# and `caddy reload --config /etc/caddy/Caddyfile`.
+# ──────────────────────────────────────────────────────────────────────────
+
+{
+	# Contact for ACME/Let's Encrypt expiry notices. Safe to leave empty.
+	email {$ACME_EMAIL}
+}
+
+# Apex (main toolkit) + Submit-Index subdomain → same Phoenix backend.
+{$PHX_HOST}, index.{$PHX_HOST} {
+	# Response compression.
+	encode zstd gzip
+
+	# Proxy everything to Phoenix on localhost. LiveView/Phoenix Channels
+	# WebSockets upgrade transparently through reverse_proxy, and Caddy adds
+	# X-Forwarded-For / X-Forwarded-Proto / X-Forwarded-Host so the app sees
+	# the real scheme and client IP.
+	reverse_proxy 127.0.0.1:{$PORT:4000}
+
+	# HSTS: force HTTPS for a year, including subdomains. Caddy already
+	# redirects http → https on its own.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+	# Drop the server banner.
+	header -Server
+
+	log {
+		output file /var/log/caddy/seovivu.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+		format json
+	}
+}

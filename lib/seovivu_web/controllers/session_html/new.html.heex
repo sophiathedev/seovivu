@@ -1,0 +1,60 @@
+<div class="flex min-h-[100dvh] items-center justify-center bg-page px-4">
+  <div class="w-full max-w-md">
+    <div class="mb-8 flex items-center justify-center gap-3">
+      <span class="flex size-11 items-center justify-center rounded-md bg-brand text-lg font-bold text-white">
+        S
+      </span>
+      <div>
+        <div class="text-xl font-bold leading-none text-ink">SEO</div>
+        <div class="text-xs text-ink-muted">Bộ công cụ SEO</div>
+      </div>
+    </div>
+
+    <div class="rounded-card border border-line bg-surface p-8 shadow-card">
+      <h1 class="text-2xl font-bold tracking-tight text-ink">Đăng nhập</h1>
+      <p class="mt-1 text-sm text-ink-muted">
+        Dùng mật khẩu mà bot Telegram đã gửi cho bạn.
+      </p>
+
+      <p
+        :if={msg = Phoenix.Flash.get(@flash, :error)}
+        class="mt-4 rounded-button border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger"
+      >
+        {msg}
+      </p>
+
+      <.form
+        :let={_f}
+        for={%{}}
+        as={:user}
+        action={~p"/login"}
+        method="post"
+        class="mt-6 space-y-1"
+      >
+        <.input
+          name="user[identifier]"
+          value=""
+          label="Tên Telegram hoặc ID"
+          required
+          autocomplete="username"
+        />
+        <.input
+          type="password"
+          name="user[password]"
+          value=""
+          label="Mật khẩu"
+          required
+          autocomplete="current-password"
+        />
+        <.button variant="primary" class="mt-3 w-full">Đăng nhập</.button>
+      </.form>
+    </div>
+
+    <p class="mt-6 text-center text-sm text-ink-muted">
+      Chưa có tài khoản?
+      <.link navigate={~p"/register"} class="font-semibold text-accent hover:underline">
+        Đăng ký bằng Telegram
+      </.link>
+    </p>
+  </div>
+</div>

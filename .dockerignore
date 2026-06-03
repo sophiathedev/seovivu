@@ -1,0 +1,8 @@
+# Keep the Docker build context small. _build and deps are recreated inside
+# the container (and held in named volumes), so don't ship the host copies.
+_build/
+deps/
+.git/
+.elixir_ls/
+priv/static/assets/
+*.log

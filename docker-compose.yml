@@ -1,0 +1,63 @@
+# Development environment for Seovivu.
+#
+#   docker compose up          # start Postgres + the Phoenix app
+#   docker compose up --build  # rebuild the app image after Dockerfile changes
+#   docker compose down        # stop everything (add -v to also drop the DB volume)
+#
+# The app is served at http://localhost:4000 with live reload enabled.
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: seovivu_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ images store data under /var/lib/postgresql/<major> and want
+      # the volume mounted here (not at /var/lib/postgresql/data).
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # Fetch deps, create/migrate the DB, then boot the server with live reload.
+    command: >
+      sh -c "mix deps.get &&
+             mix ecto.setup &&
+             mix phx.server"
+    ports:
+      - "4000:4000"
+    environment:
+      MIX_ENV: dev
+      # Point Ecto at the `db` service (see config/dev.exs).
+      DATABASE_HOST: db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: seovivu_dev
+      DATABASE_PORT: "5432"
+      # Bind the endpoint to 0.0.0.0 so it is reachable from the host.
+      BIND_ALL_INTERFACES: "true"
+      PORT: "4000"
+    volumes:
+      # Bind-mount the source for live reload.
+      - .:/app
+      # Keep build artifacts and deps in named volumes so the host OS/arch
+      # cannot clobber the Linux-compiled versions, and they persist across runs.
+      - build:/app/_build
+      - deps:/app/deps
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  build:
+  deps:
