@@ -25,6 +25,26 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/seovivu"
 import topbar from "../vendor/topbar"
 
+// Copy text to the clipboard, with a fallback for non-secure (http) contexts.
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+  }
+  const area = document.createElement("textarea")
+  area.value = text
+  area.style.position = "fixed"
+  area.style.opacity = "0"
+  document.body.appendChild(area)
+  area.focus()
+  area.select()
+  try {
+    document.execCommand("copy")
+  } finally {
+    document.body.removeChild(area)
+  }
+  return Promise.resolve()
+}
+
 // Auto-dismiss flash messages a few seconds after they appear. Clicking the
 // flash (or its close button) still clears it immediately via the phx-click.
 const Hooks = {
@@ -36,7 +56,25 @@ const Hooks = {
       clearTimeout(this.timer)
     },
   },
+  // Copies this element's `data-copy` to the clipboard, flashing a green tint.
+  Copy: {
+    mounted() {
+      this.el.addEventListener("click", () => {
+        copyText(this.el.dataset.copy || "").then(() => {
+          this.el.classList.add("text-success")
+          clearTimeout(this.timer)
+          this.timer = setTimeout(() => this.el.classList.remove("text-success"), 1200)
+        })
+      })
+    },
+    destroyed() {
+      clearTimeout(this.timer)
+    },
+  },
 }
+
+// Server-pushed "copy all results" payloads land here.
+window.addEventListener("phx:copy", e => copyText(e.detail.text || ""))
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {

@@ -117,6 +117,14 @@ defmodule SeovivuWeb.Layouts do
               <.icon name="hero-bolt" class="size-4 text-accent" /> {@credits} credit
             </span>
             <.link
+              href={SeovivuWeb.Endpoint.url()}
+              class="inline-flex items-center gap-1.5 rounded-button border border-line bg-page px-3 py-1.5 font-semibold text-ink hover:bg-surface-hover"
+              title="Về trang chủ Seovivu"
+            >
+              <.icon name="hero-home" class="size-4" />
+              <span class="hidden sm:inline">Trang chủ</span>
+            </.link>
+            <.link
               href={~p"/logout"}
               method="delete"
               class="rounded-md p-2 text-ink-muted hover:bg-surface-hover hover:text-ink"

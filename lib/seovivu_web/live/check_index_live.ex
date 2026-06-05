@@ -25,25 +25,45 @@ defmodule SeovivuWeb.CheckIndexLive do
       <div class="space-y-6">
         <BatchFeature.url_form
           form={@form}
+          feature={@feature}
           pending_count={@pending_count}
           running={running?(@job)}
         />
 
         <BatchFeature.progress :if={@job} job={@job} />
 
-        <.table :if={@job} id="check-index-items" rows={@streams.items}>
-          <:col :let={{_id, item}} label="URL">
-            <span class="break-all">{item.url}</span>
-          </:col>
-          <:col :let={{_id, item}} label="Trạng thái">
-            <BatchFeature.status_badge status={item.status} />
-          </:col>
-          <:col :let={{_id, item}} label="Kết quả">{result_label(item)}</:col>
-        </.table>
+        <div :if={@job} class="space-y-3">
+          <BatchFeature.results_header />
+          <.table id="check-index-items" rows={@streams.items}>
+            <:col :let={{_id, item}} label="URL">
+              <span class="break-all">{item.url}</span>
+            </:col>
+            <:col :let={{_id, item}} label="Trạng thái">
+              <BatchFeature.status_badge status={item.status} />
+            </:col>
+            <:col :let={{_id, item}} label="Kết quả">{result_label(item)}</:col>
+            <:action :let={{id, item}}>
+              <BatchFeature.copy_button id={"copy-#{id}"} text={item.url} label="Sao chép URL" />
+            </:action>
+          </.table>
+        </div>
+
+        <BatchFeature.recent_jobs jobs={@jobs} />
       </div>
     </Layouts.dashboard>
     """
   end
+
+  def copy_line(%{url: url, status: :success, result: %{"indexed" => true}}),
+    do: "#{url}\tĐã index"
+
+  def copy_line(%{url: url, status: :success, result: %{"indexed" => false}}),
+    do: "#{url}\tChưa index"
+
+  def copy_line(%{url: url, status: :failed, result: result}),
+    do: "#{url}\tLỗi: #{result["error"] || "lỗi"}"
+
+  def copy_line(%{url: url}), do: "#{url}\t—"
 
   defp running?(%{status: :running}), do: true
   defp running?(_), do: false

@@ -70,7 +70,40 @@ defmodule Seovivu.SeoTest do
 
       assert job.feature == :backlink
       assert job.params == %{"target" => "vidu.com"}
-      assert main_credits(user) == 8
+    end
+
+    test "free features (url_status, backlink) reserve no credits" do
+      assert Seo.free?(:url_status)
+      assert Seo.free?(:backlink)
+      refute Seo.free?(:check_index)
+
+      user = user_with_credits(10)
+
+      {:ok, status_job} = Seo.start_batch(user, :url_status, "a.com\nb.com")
+      assert status_job.credits_charged == 0
+      assert main_credits(user) == 10
+
+      {:ok, link_job} =
+        Seo.start_batch(user, :backlink, "src1.com\nsrc2.com", %{"target" => "vidu.com"})
+
+      assert link_job.credits_charged == 0
+      assert main_credits(user) == 10
+    end
+
+    test "free features run even without a main wallet" do
+      {:ok, user} =
+        %User{}
+        |> User.telegram_changeset(%{
+          telegram_id: System.unique_integer([:positive]),
+          telegram_username: "u",
+          telegram_first_name: "U",
+          username: "nowallet#{System.unique_integer([:positive])}",
+          role: :user
+        })
+        |> Repo.insert()
+
+      assert {:ok, job} = Seo.start_batch(user, :url_status, "a.com\nb.com")
+      assert job.credits_charged == 0
     end
   end
 

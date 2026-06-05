@@ -40,12 +40,14 @@ defmodule SeovivuWeb.BatchFeature do
         {:ok,
          socket
          |> assign(:page_title, @title)
+         |> assign(:feature, @feature)
          |> assign(:credits, BatchFeature.credits(main))
          |> assign(:days, BatchFeature.days(main))
          |> assign(:tier, BatchFeature.tier(main))
          |> assign(:job, nil)
          |> assign(:pending_count, 0)
          |> assign(:form, to_form(%{"urls" => ""}))
+         |> assign(:jobs, Seo.list_jobs(user.id, @feature))
          |> stream(:items, [])}
       end
 
@@ -59,13 +61,26 @@ defmodule SeovivuWeb.BatchFeature do
         BatchFeature.run_batch(socket, @feature, params)
       end
 
+      def handle_event("load_job", %{"id" => id}, socket) do
+        BatchFeature.load_job(socket, id)
+      end
+
+      def handle_event("copy_results", _params, socket) do
+        BatchFeature.copy_results(socket, &copy_line/1)
+      end
+
       @impl true
       def handle_info({:item_done, item}, socket) do
         {:noreply, BatchFeature.apply_item(socket, item)}
       end
 
       def handle_info({:job_done, job}, socket) do
-        {:noreply, assign(socket, :job, job)}
+        user = socket.assigns.current_user
+
+        {:noreply,
+         socket
+         |> assign(:job, job)
+         |> assign(:jobs, Seo.list_jobs(user.id, @feature))}
       end
 
       def handle_info({:wallet_updated, :main, credits}, socket) do
@@ -73,6 +88,12 @@ defmodule SeovivuWeb.BatchFeature do
       end
 
       def handle_info(_message, socket), do: {:noreply, socket}
+
+      # Per-feature plain-text formatting of one result row for "copy all".
+      # Feature LiveViews override this to produce meaningful columns.
+      @doc false
+      def copy_line(item), do: BatchFeature.default_copy_line(item)
+      defoverridable copy_line: 1
     end
   end
 
@@ -92,6 +113,7 @@ defmodule SeovivuWeb.BatchFeature do
          |> assign(:job, job)
          |> assign(:pending_count, 0)
          |> assign(:form, to_form(%{"urls" => ""}))
+         |> assign(:jobs, Seo.list_jobs(job.user_id, feature))
          |> stream(:items, Seo.list_items(job.id), reset: true)}
 
       {:error, :no_urls} ->
@@ -111,6 +133,50 @@ defmodule SeovivuWeb.BatchFeature do
     |> update(:job, &bump(&1, item.status))
     |> stream_insert(:items, item)
   end
+
+  @doc "Loads a past run (scoped to the current user) back into the results view."
+  def load_job(socket, id) do
+    case Seo.get_user_job(socket.assigns.current_user.id, id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Không tìm thấy lượt chạy.")}
+
+      job ->
+        {:noreply,
+         socket
+         |> assign(:job, job)
+         |> stream(:items, Seo.list_items(job.id), reset: true)}
+    end
+  end
+
+  @doc """
+  Copies the current job's results to the client's clipboard by pushing a
+  `copy` event with the formatted text (one line per item, tab-separated).
+  """
+  def copy_results(socket, line_fun) do
+    case socket.assigns.job do
+      nil ->
+        {:noreply, socket}
+
+      job ->
+        text =
+          job.id
+          |> Seo.list_items()
+          |> Enum.map_join("\n", line_fun)
+
+        {:noreply,
+         socket
+         |> push_event("copy", %{text: text})
+         |> put_flash(:info, "Đã sao chép kết quả vào bộ nhớ tạm.")}
+    end
+  end
+
+  @doc "Fallback copy formatter: URL plus a compact rendering of its result."
+  def default_copy_line(%{url: url, result: result}) when result not in [nil, %{}] do
+    summary = result |> Map.drop(["anchors"]) |> Enum.map_join(" ", fn {k, v} -> "#{k}=#{v}" end)
+    "#{url}\t#{summary}"
+  end
+
+  def default_copy_line(%{url: url}), do: url
 
   defp bump(%{} = job, :success),
     do: %{job | done: job.done + 1, success_count: job.success_count + 1}
@@ -133,6 +199,7 @@ defmodule SeovivuWeb.BatchFeature do
 
   @doc "The URL textarea + submit card with a live cost preview."
   attr :form, :map, required: true
+  attr :feature, :atom, default: nil
   attr :pending_count, :integer, default: 0
   attr :running, :boolean, default: false
   attr :submit_label, :string, default: "Bắt đầu kiểm tra"
@@ -140,6 +207,8 @@ defmodule SeovivuWeb.BatchFeature do
   slot :extra, doc: "optional fields rendered above the URL textarea"
 
   def url_form(assigns) do
+    assigns = assign(assigns, :free, Seovivu.Seo.free?(assigns.feature))
+
     ~H"""
     <section class="rounded-card border border-line bg-surface p-6 shadow-card">
       <.form for={@form} phx-submit="run" phx-change="preview">
@@ -152,10 +221,16 @@ defmodule SeovivuWeb.BatchFeature do
           placeholder={@placeholder}
         />
         <div class="mt-2 flex items-center justify-between">
-          <p class="text-sm text-ink-muted">
+          <p :if={@free} class="text-sm text-ink-muted">
+            <span class="font-semibold text-ink">{@pending_count}</span>
+            URL · <span class="font-semibold text-success">Miễn phí (không trừ credit)</span>
+          </p>
+          <p :if={!@free} class="text-sm text-ink-muted">
             <span class="font-semibold text-ink">{@pending_count}</span>
             URL · chi phí
-            <span class="font-semibold text-ink">{Seovivu.Seo.cost_for(@pending_count)}</span>
+            <span class="font-semibold text-ink">
+              {Seovivu.Seo.cost_for(@feature, @pending_count)}
+            </span>
             credit
           </p>
           <.button type="submit" disabled={@running or @pending_count == 0}>
@@ -165,6 +240,94 @@ defmodule SeovivuWeb.BatchFeature do
       </.form>
     </section>
     """
+  end
+
+  @doc """
+  Header row above the results table: a title and a "copy all" button that
+  triggers the `copy_results` event (handled by the feature LiveView).
+  """
+  attr :title, :string, default: "Kết quả"
+
+  def results_header(assigns) do
+    ~H"""
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="text-sm font-bold uppercase tracking-wider text-ink-secondary">{@title}</h3>
+      <.button type="button" variant="secondary" phx-click="copy_results">
+        <.icon name="hero-clipboard-document" class="size-4" /> Sao chép tất cả
+      </.button>
+    </div>
+    """
+  end
+
+  @doc "A small icon button that copies `text` to the clipboard on click (client-side)."
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+  attr :label, :string, default: "Sao chép"
+
+  def copy_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      phx-hook="Copy"
+      data-copy={@text}
+      title={@label}
+      class="inline-flex size-7 items-center justify-center rounded-button border border-line bg-surface text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
+    >
+      <.icon name="hero-clipboard-document" class="size-4" />
+    </button>
+    """
+  end
+
+  @doc "Dashboard of the user's recent runs for this feature; rows reload on click."
+  attr :jobs, :list, required: true
+
+  def recent_jobs(assigns) do
+    ~H"""
+    <section :if={@jobs != []}>
+      <h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-ink-secondary">
+        Lượt kiểm tra gần đây
+      </h3>
+      <.table id="recent-jobs" rows={@jobs}>
+        <:col :let={j} label="URL">{j.total}</:col>
+        <:col :let={j} label="Thành công">
+          <span class="font-semibold text-success">{j.success_count}</span>
+        </:col>
+        <:col :let={j} label="Lỗi">
+          <span class="font-semibold text-danger">{j.failed_count}</span>
+        </:col>
+        <:col :let={j} label="Trạng thái">
+          <.badge tone={job_tone(j.status)}>{job_status(j.status)}</.badge>
+        </:col>
+        <:col :let={j} label="Thời gian">{format_datetime(j.completed_at || j.inserted_at)}</:col>
+        <:action :let={j}>
+          <button
+            type="button"
+            phx-click="load_job"
+            phx-value-id={j.id}
+            class="font-semibold text-accent hover:underline"
+          >
+            Xem
+          </button>
+        </:action>
+      </.table>
+    </section>
+    """
+  end
+
+  defp job_status(:done), do: "Hoàn tất"
+  defp job_status(:running), do: "Đang chạy"
+  defp job_status(:canceled), do: "Đã hủy"
+  defp job_status(other), do: to_string(other)
+
+  defp job_tone(:done), do: "success"
+  defp job_tone(:running), do: "info"
+  defp job_tone(_), do: "neutral"
+
+  defp format_datetime(nil), do: "—"
+
+  defp format_datetime(%{} = dt) do
+    Calendar.strftime(dt, "%d/%m/%Y %H:%M")
   end
 
   @doc "Progress bar + success/failed tallies for a running/finished job."

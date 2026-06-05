@@ -29,16 +29,25 @@ defmodule Seovivu.Seo do
   @cost_per_url 1
   @max_urls 500
 
-  # feature => the wallet its credits are drawn from
+  # feature => its wallet (where credits are drawn from) and whether it's free.
+  # Free features run without reserving/charging any credits.
   @features %{
-    check_index: %{wallet: :main},
-    url_status: %{wallet: :main},
-    backlink: %{wallet: :main},
-    redirect_301: %{wallet: :main}
+    check_index: %{wallet: :main, free: false},
+    url_status: %{wallet: :main, free: true},
+    backlink: %{wallet: :main, free: true},
+    redirect_301: %{wallet: :main, free: false}
   }
 
-  @doc "Credit cost for a batch of `count` URLs."
+  @doc "Whether `feature` runs for free (no credits reserved/charged)."
+  def free?(feature), do: match?(%{free: true}, Map.get(@features, feature))
+
+  @doc "Credit cost for a batch of `count` URLs (defaults to a paid feature)."
   def cost_for(count) when is_integer(count), do: count * @cost_per_url
+
+  @doc "Credit cost for `count` URLs of `feature` — zero for free features."
+  def cost_for(feature, count) when is_atom(feature) and is_integer(count) do
+    if free?(feature), do: 0, else: cost_for(count)
+  end
 
   @doc "Max URLs accepted in a single batch."
   def max_urls, do: @max_urls
@@ -68,11 +77,11 @@ defmodule Seovivu.Seo do
     with {:ok, spec} <- fetch_spec(feature),
          clean = parse_urls(urls),
          {:ok, _} <- ensure_nonempty(clean),
-         cost = cost_for(length(clean)),
+         cost = cost_for(feature, length(clean)),
          wallet = Billing.get_wallet(user.id, spec.wallet),
          {:ok, _wallet} <- reserve(wallet, cost, feature) do
       {:ok, job} = insert_job(user.id, feature, clean, cost, params)
-      broadcast_wallet(user.id, spec.wallet)
+      if cost > 0, do: broadcast_wallet(user.id, spec.wallet)
       maybe_run(job)
       {:ok, job}
     end
@@ -88,6 +97,8 @@ defmodule Seovivu.Seo do
   defp ensure_nonempty([]), do: {:error, :no_urls}
   defp ensure_nonempty(_), do: {:ok, :ok}
 
+  # Free features (cost 0) run even without a main wallet.
+  defp reserve(_wallet, 0, _feature), do: {:ok, :free}
   defp reserve(nil, _cost, _feature), do: {:error, :insufficient_credits}
   defp reserve(wallet, cost, feature), do: Billing.reserve(wallet, cost, feature)
 
@@ -276,6 +287,7 @@ defmodule Seovivu.Seo do
     success = Map.get(counts, :success, 0)
     failed = Map.get(counts, :failed, 0)
     refund_credits(job, failed)
+    refunded = if free?(job.feature), do: 0, else: failed
 
     {:ok, job} =
       job
@@ -284,7 +296,7 @@ defmodule Seovivu.Seo do
         done: success + failed,
         success_count: success,
         failed_count: failed,
-        credits_refunded: failed,
+        credits_refunded: refunded,
         completed_at: now()
       })
       |> Repo.update()
@@ -296,6 +308,14 @@ defmodule Seovivu.Seo do
   defp refund_credits(_job, 0), do: :ok
 
   defp refund_credits(job, amount) do
+    if free?(job.feature) do
+      :ok
+    else
+      do_refund_credits(job, amount)
+    end
+  end
+
+  defp do_refund_credits(job, amount) do
     spec = Map.fetch!(@features, job.feature)
 
     case Billing.get_wallet(job.user_id, spec.wallet) do
@@ -335,11 +355,12 @@ defmodule Seovivu.Seo do
       |> Repo.aggregate(:count)
 
     if Map.has_key?(@features, job.feature), do: refund_credits(job, unfinished)
+    refunded = if free?(job.feature), do: 0, else: unfinished
 
     job
     |> Job.changeset(%{
       status: :canceled,
-      credits_refunded: (job.credits_refunded || 0) + unfinished,
+      credits_refunded: (job.credits_refunded || 0) + refunded,
       completed_at: now()
     })
     |> Repo.update()
@@ -389,6 +410,11 @@ defmodule Seovivu.Seo do
   @doc "Items of a job, ordered by id."
   def list_items(job_id) do
     JobItem |> where(job_id: ^job_id) |> order_by(:id) |> Repo.all()
+  end
+
+  @doc "Loads a job scoped to its owner (nil if not theirs)."
+  def get_user_job(user_id, id) do
+    Job |> where(id: ^id, user_id: ^user_id) |> Repo.one()
   end
 
   def get_job!(id), do: Repo.get!(Job, id)
