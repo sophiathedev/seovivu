@@ -194,6 +194,22 @@ defmodule Seovivu.Telegram do
   end
 
   @doc """
+  Programmatically runs the bot's `/reset` flow for `user` — exactly as if they
+  had sent `/reset` to the bot — issuing a fresh password and DMing it over
+  Telegram. Used by the website's "forgot password" action.
+
+  Returns `:ok` when a reset DM was queued, or `{:error, :no_telegram}` when the
+  user has no linked Telegram chat (nothing is changed in that case).
+  """
+  def request_reset(%Accounts.User{telegram_id: tid} = user)
+      when is_integer(tid) and tid > 0 do
+    deliver_reset(user, tid)
+    :ok
+  end
+
+  def request_reset(_user), do: {:error, :no_telegram}
+
+  @doc """
   Queues a broadcast of `text` to every active user. Returns
   `{:ok, recipient_count}` or `{:error, :empty}`. The actual fan-out (one
   message per user) happens in `BroadcastWorker`.
@@ -261,10 +277,7 @@ defmodule Seovivu.Telegram do
         send_message_async(chat_id, "Bạn chưa có tài khoản. Gửi /start để tạo tài khoản.")
 
       user ->
-        case Accounts.reset_password(user) do
-          {:ok, _user, password} -> send_message_async(chat_id, reset_text(password))
-          _ -> send_message_async(chat_id, "Không đặt lại được mật khẩu. Vui lòng thử lại.")
-        end
+        deliver_reset(user, chat_id)
     end
 
     :ok
@@ -298,6 +311,15 @@ defmodule Seovivu.Telegram do
   end
 
   ## Messages
+
+  # Issues a fresh password for `user` and DMs it to `chat_id`. Shared by the
+  # `/reset` command and the website's forgot-password action.
+  defp deliver_reset(user, chat_id) do
+    case Accounts.reset_password(user) do
+      {:ok, _user, password} -> send_message_async(chat_id, reset_text(password))
+      _ -> send_message_async(chat_id, "Không đặt lại được mật khẩu. Vui lòng thử lại.")
+    end
+  end
 
   defp welcome_text(user, password) do
     render_template("welcome", %{username: display_name(user), password: password})

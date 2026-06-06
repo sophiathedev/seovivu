@@ -126,6 +126,19 @@ defmodule Seovivu.Accounts do
     end
   end
 
+  @doc """
+  Finds a user by login identifier (numeric Telegram ID, username, or Telegram
+  username). Returns the user or nil. Used by the password-reset flow.
+  """
+  def get_user_by_identifier(identifier) when is_binary(identifier) do
+    case String.trim(identifier) do
+      "" -> nil
+      trimmed -> find_by_identifier(trimmed)
+    end
+  end
+
+  def get_user_by_identifier(_), do: nil
+
   defp find_by_identifier(identifier) do
     case Integer.parse(identifier) do
       {telegram_id, ""} ->

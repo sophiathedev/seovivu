@@ -77,6 +77,28 @@ defmodule Seovivu.TelegramTest do
     end
   end
 
+  describe "request_reset/1 (website forgot-password)" do
+    test "resets the password and DMs it for a Telegram-linked user" do
+      user = create_user()
+      {:ok, _} = Accounts.set_password(user, "old-password-123")
+
+      assert :ok = Telegram.request_reset(user)
+
+      # Password was rotated and the user is forced to change it on next login.
+      refute Accounts.valid_password?(Accounts.get_user(user.id), "old-password-123")
+      assert Accounts.get_user(user.id).must_change_password
+
+      assert [send] = all_enqueued(worker: SendMessageWorker)
+      assert send.args["chat_id"] == user.telegram_id
+    end
+
+    test "is a no-op for a user without a linked Telegram account" do
+      assert {:error, :no_telegram} = Telegram.request_reset(%User{telegram_id: nil})
+      assert {:error, :no_telegram} = Telegram.request_reset(nil)
+      assert all_enqueued(worker: SendMessageWorker) == []
+    end
+  end
+
   describe "issuing passwords to imported users" do
     test "sets a password and enqueues a DM for each password-less user, skipping others" do
       u1 = create_user()

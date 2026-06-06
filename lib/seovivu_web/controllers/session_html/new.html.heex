@@ -23,6 +23,13 @@
         {msg}
       </p>
 
+      <p
+        :if={msg = Phoenix.Flash.get(@flash, :info)}
+        class="mt-4 rounded-button border border-line bg-page px-3 py-2 text-sm text-ink-secondary"
+      >
+        {msg}
+      </p>
+
       <.form
         :let={_f}
         for={%{}}
@@ -48,6 +55,39 @@
         />
         <.button variant="primary" class="mt-3 w-full">Đăng nhập</.button>
       </.form>
+
+      <details class="group mt-5 border-t border-line-soft pt-4">
+        <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-accent hover:underline">
+          Quên mật khẩu?
+          <.icon
+            name="hero-chevron-down"
+            class="size-4 transition-transform group-open:rotate-180"
+          />
+        </summary>
+
+        <p class="mt-3 text-sm text-ink-muted">
+          Nhập tên Telegram hoặc ID, bot sẽ tự động đặt lại và gửi mật khẩu mới cho bạn qua Telegram.
+        </p>
+
+        <.form
+          for={%{}}
+          as={:user}
+          action={~p"/forgot-password"}
+          method="post"
+          class="mt-3 space-y-1"
+        >
+          <.input
+            name="user[identifier]"
+            value=""
+            label="Tên Telegram hoặc ID"
+            required
+            autocomplete="username"
+          />
+          <.button variant="secondary" class="mt-2 w-full">
+            <.icon name="hero-paper-airplane" class="size-4" /> Gửi mật khẩu mới qua Telegram
+          </.button>
+        </.form>
+      </details>
     </div>
 
     <p class="mt-6 text-center text-sm text-ink-muted">

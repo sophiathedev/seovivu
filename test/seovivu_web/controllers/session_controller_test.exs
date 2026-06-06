@@ -34,4 +34,43 @@ defmodule SeovivuWeb.SessionControllerTest do
     assert html_response(conn, 200) =~ "Sai thông tin đăng nhập"
     refute get_session(conn, :user_token)
   end
+
+  describe "POST /forgot-password" do
+    test "triggers the bot reset for a known identifier", %{conn: conn} do
+      user = user_fixture()
+      {:ok, _} = Accounts.set_password(user, "old-password-123")
+
+      conn = post(conn, ~p"/forgot-password", %{"user" => %{"identifier" => user.username}})
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "mật khẩu mới đã được gửi"
+      # The password was rotated, so the old one no longer works.
+      refute Accounts.valid_password?(Accounts.get_user!(user.id), "old-password-123")
+    end
+
+    test "shows the same generic message for an unknown identifier", %{conn: conn} do
+      conn = post(conn, ~p"/forgot-password", %{"user" => %{"identifier" => "khong-ton-tai"}})
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "mật khẩu mới đã được gửi"
+    end
+
+    test "asks for an identifier when none is given", %{conn: conn} do
+      conn = post(conn, ~p"/forgot-password", %{"user" => %{"identifier" => ""}})
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Vui lòng nhập"
+    end
+
+    test "throttles a second request for the same identifier", %{conn: conn} do
+      user = user_fixture()
+
+      first = post(conn, ~p"/forgot-password", %{"user" => %{"identifier" => user.username}})
+      assert Phoenix.Flash.get(first.assigns.flash, :info)
+
+      second = post(conn, ~p"/forgot-password", %{"user" => %{"identifier" => user.username}})
+      assert redirected_to(second) == ~p"/login"
+      assert Phoenix.Flash.get(second.assigns.flash, :error) =~ "thử lại sau"
+    end
+  end
 end

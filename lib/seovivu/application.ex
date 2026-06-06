@@ -13,6 +13,8 @@ defmodule Seovivu.Application do
         Seovivu.Repo,
         {DNSCluster, query: Application.get_env(:seovivu, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Seovivu.PubSub},
+        # In-memory rate limiter (throttles abuse-prone endpoints, e.g. password reset).
+        Seovivu.RateLimiter,
         # Dedicated HTTP connection pool for all outbound requests (feature
         # engines + Telegram). A generous pool keeps concurrent batches from
         # queueing behind one another at the transport layer.

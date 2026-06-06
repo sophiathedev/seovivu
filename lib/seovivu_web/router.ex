@@ -56,6 +56,7 @@ defmodule SeovivuWeb.Router do
 
     get "/login", SessionController, :new
     post "/login", SessionController, :create
+    post "/forgot-password", SessionController, :forgot
 
     live_session :public,
       on_mount: [{SeovivuWeb.UserAuth, :redirect_if_authenticated}] do
